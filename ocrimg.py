@@ -25,6 +25,8 @@ if __name__ == '__main__':
             sys.exit()
 
     path = "ocrimg.ini"
+    changes = []
+    koefs = []
     if os.path.exists(path):
         config = configparser.ConfigParser()
         config.read(path)
@@ -41,6 +43,12 @@ if __name__ == '__main__':
         start = int(config.get("Angle", "start"))
         finish = int(config.get("Angle", "finish"))
         step = int(config.get("Angle", "step"))
+        for option in config.options("Changes"):
+            changes.append([option, config.get("Changes", option)])
+        for option in config.options("Koeff"):
+            koefs.append([option, float(config.get("Koeff", option))])
+        limit = int(config.get("Break", "limit"))
+        print(changes, koefs, limit)
         mode = config.get("Output", "mode")
         if mode == 'file':
             out_name = config.get("Output", "filename")
@@ -53,6 +61,7 @@ if __name__ == '__main__':
         mask = 192
         save_img, save_parts = 0, 0
         start, finish, step = -30, 31, 5
+        limit = 0
         mode = 'file'
         out_name = 'rezocr.txt'
         parts = [[0,40], [35,72], [70,103], [102, 148]]
@@ -77,12 +86,23 @@ if __name__ == '__main__':
         for angle in range(start, finish, step):
             tn = recogn(img0.rotate(angle), '--tessdata-dir ' + tessdata + ' ' + opt) 
             if len(tn) > 0:
+                if len(tn) == 2:
+                    for ch in changes:
+                        if tn == ch[0]:
+                            tn = ch[1]
+                            break
                 for k in tn:
                     if symbs.get(k) == None:
                         symbs.update({k:1})
                     else:
                         symbs.update({k:symbs.get(k)+1})
+                if limit > 0 and max(symbs.values()) > limit:
+                    break
         if len(symbs):
+            for k in koefs:
+                sk = symbs.get(k[0], 0)
+                if sk > 1:
+                    symbs.update({k[0]:sk*k[1]})
             symb = max(symbs.items(), key = lambda x: x[1])[0]
             rez += symb
         if save_parts > 0:
@@ -98,5 +118,4 @@ if __name__ == '__main__':
     elif mode == 'stdout':
         sys.stdout.write(rez)
     if save_img > 0:
-#        sys.stdout = open(os.devnull, 'w')
         os.system('copy ' + str(in_file) + ' ' + save_dir + basename + '_' + rez + '.png > nul')
